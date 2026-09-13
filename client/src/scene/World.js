@@ -23,7 +23,7 @@ export class World {
     const grid=new THREE.GridHelper(100,50,0x56616a,0x35404b);grid.material.transparent=true;grid.material.opacity=.1;grid.position.y=.005;this.garage.add(grid);
     this.car=makeCar('supra');this.garage.add(this.car);this.car.rotation.y=-.45;
     this.mode='garage';this.orbit=0;this.models=new Map();this.cameraMode=0;this.lastCameraMode=0;this.raceGroup=null;this.adaptiveQuality=true;this.quality='medium';this.qualityCooldown=0;this.lowFpsSamples=0;this.highFpsSamples=0;
-    this.tmpForward=new THREE.Vector3();this.tmpTarget=new THREE.Vector3();this.tmpDesired=new THREE.Vector3();this.tmpLook=new THREE.Vector3();
+    this.tmpForward=new THREE.Vector3();this.tmpTarget=new THREE.Vector3();this.tmpDesired=new THREE.Vector3();this.tmpLook=new THREE.Vector3();this.cameraLook=new THREE.Vector3();this.cameraLookReady=false;
     this.onWindowResize=()=>this.resize();window.addEventListener('resize',this.onWindowResize,{passive:true});
     if(typeof ResizeObserver!=='undefined'){this.resizeObserver=new ResizeObserver(()=>this.resize());this.resizeObserver.observe(root||canvas);}
     this.canvas.addEventListener('webglcontextlost',e=>{e.preventDefault();this.hooks.onContextLost?.();},{passive:false});
@@ -118,8 +118,8 @@ export class World {
     this.pickups=[];const glow=new THREE.MeshBasicMaterial({color:0x9fffef});
     for(let i=0;i<16;i++){const p=pointAt(40+i*TRACK_LENGTH/16);const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(.5),glow);mesh.position.set(p.x,1.5,p.z);group.add(mesh);this.pickups.push({mesh,s:p.s});}
   }
-  showGarage(){this.mode='garage';this.garage.visible=true;this.skyDome.visible=false;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
-  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.skyDome.visible=true;this.raceGroup.visible=true;const theme=getActiveMap().theme;this.setSkyTheme(theme);this.scene.background.set(theme.sky);this.scene.fog=new THREE.Fog(theme.fog||theme.sky,theme.fogNear||150,theme.fogFar||850);const city=theme.environment==='city',coast=theme.environment==='coast';this.sun.intensity=city?.8:coast?3.1:2.6;this.fillLight.intensity=city?.7:coast?1.5:1.25;this.rim.intensity=city?2.2:coast?.9:.65;this.renderer.toneMappingExposure=city?1.18:1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
+  showGarage(){this.mode='garage';this.garage.visible=true;this.skyDome.visible=false;this.cameraLookReady=false;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
+  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.skyDome.visible=true;this.cameraLookReady=false;this.raceGroup.visible=true;const theme=getActiveMap().theme;this.setSkyTheme(theme);this.scene.background.set(theme.sky);this.scene.fog=new THREE.Fog(theme.fog||theme.sky,theme.fogNear||150,theme.fogFar||850);const city=theme.environment==='city',coast=theme.environment==='coast';this.sun.intensity=city?.8:coast?3.1:2.6;this.fillLight.intensity=city?.7:coast?1.5:1.25;this.rim.intensity=city?2.2:coast?.9:.65;this.renderer.toneMappingExposure=city?1.18:1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
   thumbnails(){
     const result={};const oldId=this.car.userData.id;
     this.renderer.setSize(440,220,false);this.camera.aspect=2;this.camera.fov=35;this.camera.updateProjectionMatrix();this.camera.position.set(6,2.8,7.8);this.camera.lookAt(0,.7,0);
@@ -142,12 +142,15 @@ export class World {
         const desired=this.tmpDesired.copy(target).addScaledVector(f,-distance);desired.y=this.cameraMode===2?1.35:this.cameraMode===1?6.4:4.1;
         keepCameraClear(desired);
         // Do not fly the camera through the cabin when entering or leaving hood view.
-        if(this.lastCameraMode!==this.cameraMode&&(this.cameraMode===2||this.lastCameraMode===2))this.camera.position.copy(desired);
+        const cameraChanged=this.lastCameraMode!==this.cameraMode;
+        if(cameraChanged&&(this.cameraMode===2||this.lastCameraMode===2))this.camera.position.copy(desired);
         else this.camera.position.lerp(desired,1-Math.exp(-dt*6));
         this.lastCameraMode=this.cameraMode;
         // The target is already kept inside the road. Re-clamping the smoothed
         // camera each frame caused a visible snap at fast corners.
-        const look=this.tmpLook.copy(target).addScaledVector(f,8);look.y=1;this.camera.lookAt(look);
+        const look=this.tmpLook.copy(target).addScaledVector(f,8);look.y=1;
+        if(!this.cameraLookReady||cameraChanged)this.cameraLook.copy(look);else this.cameraLook.lerp(look,1-Math.exp(-dt*10));
+        this.cameraLookReady=true;this.camera.lookAt(this.cameraLook);
         this.camera.fov+=( (player.boosting?76:65)-this.camera.fov)*dt*3;this.camera.updateProjectionMatrix();
         this.sun.position.set(player.x+20,35,player.z+15);this.sun.target.position.set(player.x,0,player.z);
       }
