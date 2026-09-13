@@ -64,6 +64,10 @@ export class World {
     strip(-TRACK_WIDTH/2,TRACK_WIDTH/2,asphalt);
     const grassMap=surfaceTexture('grass');grassMap.repeat.set(300,300);
     const grass=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.MeshStandardMaterial({map:grassMap,color:theme.grass,roughness:1,envMapIntensity:.08}));grass.rotation.x=-Math.PI/2;grass.position.y=-.07;grass.receiveShadow=true;group.add(grass);
+    if(theme.environment==='coast'){
+      const water=new THREE.Mesh(new THREE.RingGeometry(285,1120,128),new THREE.MeshStandardMaterial({color:theme.water,roughness:.2,metalness:.08,transparent:true,opacity:.94,envMapIntensity:.35}));water.rotation.x=-Math.PI/2;water.position.y=-.035;water.receiveShadow=true;group.add(water);
+      const foam=new THREE.Mesh(new THREE.RingGeometry(290,305,128),new THREE.MeshBasicMaterial({color:theme.foam,transparent:true,opacity:.45,side:THREE.DoubleSide}));foam.rotation.x=-Math.PI/2;foam.position.y=-.025;group.add(foam);
+    }
     const gravel=new THREE.MeshStandardMaterial({map:surfaceTexture('gravel'),roughness:1,envMapIntensity:.1,side:THREE.DoubleSide});
     for(const side of[-1,1])strip(side*9.5,side*12,gravel,.008);
     for(const side of [-1,1])strip(side*9.1,side*9.25,new THREE.MeshBasicMaterial({color:0xe6e3bd,side:THREE.DoubleSide}),.04);
@@ -86,17 +90,30 @@ export class World {
       const banner=new THREE.Mesh(new THREE.BoxGeometry(21.7,1.4,.25),new THREE.MeshStandardMaterial({map:texture,roughness:.85}));banner.position.y=10;gate.add(banner);
     };
     makeSign(`TURBORUSH  /  ${getActiveMap().name.toUpperCase()}`,0);for(let i=1;i<12;i++)makeSign(i%3===0?'HIT THE APEX':'CHECKPOINT  '+String(i).padStart(2,'0'),i*TRACK_LENGTH/12,i%3===0?'#f99c6b':'#d0e6e4');
-    const random=seeded(93),allTrees=generateTrees(),trees=this.quality==='low'?allTrees.filter((_,i)=>i%2===0):allTrees;
-    const leaves=instances(trees.length*3,new THREE.ConeGeometry(1,2,9),new THREE.MeshStandardMaterial({color:0x597c58,roughness:1,envMapIntensity:.1}));const trunks=instances(trees.length,new THREE.CylinderGeometry(.15,.22,1,6),new THREE.MeshStandardMaterial({color:0x594633,roughness:1}));
-    trees.forEach((t,i)=>{matrix.rotation.set(0,t.yaw,0);matrix.position.set(t.x,t.scale*.4,t.z);matrix.scale.set(1,t.scale,1);matrix.updateMatrix();trunks.setMatrixAt(i,matrix.matrix);for(let j=0;j<3;j++){matrix.position.y=t.scale*(.7+j*.32);matrix.scale.set(t.scale*(.6-j*.14),t.scale*.5,t.scale*(.6-j*.14));matrix.updateMatrix();leaves.setMatrixAt(i*3+j,matrix.matrix);leaves.setColorAt(i*3+j,new THREE.Color().setHSL(.27+t.tint*.09,.23,.55+j*.045));}});
-    const buildingMat=new THREE.MeshStandardMaterial({color:0x617782,roughness:.74,metalness:.2});
-    for(let i=0;i<32;i++){const angle=i/32*Math.PI*2,radius=380+random()*150,h=20+random()*100;const mesh=new THREE.Mesh(new THREE.BoxGeometry(15+random()*20,h,15+random()*20),buildingMat);mesh.position.set(-40+Math.cos(angle)*radius,h/2,Math.sin(angle)*radius);group.add(mesh);}
-    for(let i=0;i<20;i++){const angle=i/20*Math.PI*2;const mountain=new THREE.Mesh(new THREE.ConeGeometry(160+random()*100,150+random()*120,5),new THREE.MeshStandardMaterial({color:i%2?0x667a7b:0x798a87,flatShading:true}));mountain.position.set(Math.cos(angle)*900,15,Math.sin(angle)*900);group.add(mountain);}
+    const random=seeded(theme.environment==='city'?41:93);
+    if(theme.environment==='forest'){
+      const allTrees=generateTrees(),trees=this.quality==='low'?allTrees.filter((_,i)=>i%2===0):allTrees;
+      const leaves=instances(trees.length*3,new THREE.ConeGeometry(1,2,9),new THREE.MeshStandardMaterial({color:0x597c58,roughness:1,envMapIntensity:.1}));const trunks=instances(trees.length,new THREE.CylinderGeometry(.15,.22,1,6),new THREE.MeshStandardMaterial({color:0x594633,roughness:1}));
+      trees.forEach((t,i)=>{matrix.rotation.set(0,t.yaw,0);matrix.position.set(t.x,t.scale*.4,t.z);matrix.scale.set(1,t.scale,1);matrix.updateMatrix();trunks.setMatrixAt(i,matrix.matrix);for(let j=0;j<3;j++){matrix.position.y=t.scale*(.7+j*.32);matrix.scale.set(t.scale*(.6-j*.14),t.scale*.5,t.scale*(.6-j*.14));matrix.updateMatrix();leaves.setMatrixAt(i*3+j,matrix.matrix);leaves.setColorAt(i*3+j,new THREE.Color().setHSL(.27+t.tint*.09,.23,.55+j*.045));}});
+      for(let i=0;i<20;i++){const angle=i/20*Math.PI*2;const mountain=new THREE.Mesh(new THREE.ConeGeometry(160+random()*100,150+random()*120,5),new THREE.MeshStandardMaterial({color:i%2?0x667a7b:0x798a87,flatShading:true}));mountain.position.set(Math.cos(angle)*900,15,Math.sin(angle)*900);group.add(mountain);}
+    }else if(theme.environment==='coast'){
+      const palmCount=this.quality==='low'?18:30;
+      const palmTrunks=instances(palmCount,new THREE.CylinderGeometry(.16,.28,1,7),new THREE.MeshStandardMaterial({color:0x76533b,roughness:1}));const palmLeaves=instances(palmCount,new THREE.ConeGeometry(1.4,3.8,8),new THREE.MeshStandardMaterial({color:0x2f806d,roughness:.9}));
+      for(let i=0;i<palmCount;i++){const angle=i/palmCount*Math.PI*2+.25,radius=300+random()*330,h=3.5+random()*2;matrix.position.set(Math.cos(angle)*radius,h/2,Math.sin(angle)*radius);matrix.rotation.set(0,angle,0);matrix.scale.set(1,h,1);matrix.updateMatrix();palmTrunks.setMatrixAt(i,matrix.matrix);matrix.position.y=h+.9;matrix.scale.set(1.15,1.15,1.15);matrix.updateMatrix();palmLeaves.setMatrixAt(i,matrix.matrix);}
+      const rockCount=36,rocks=instances(rockCount,new THREE.IcosahedronGeometry(1,1),new THREE.MeshStandardMaterial({color:0x8d8b79,roughness:1}));for(let i=0;i<rockCount;i++){const angle=random()*Math.PI*2,radius=280+random()*300;matrix.position.set(Math.cos(angle)*radius,-.02,Math.sin(angle)*radius);matrix.rotation.set(random(),random(),random());const size=1+random()*4;matrix.scale.set(size,size*.45,size*.8);matrix.updateMatrix();rocks.setMatrixAt(i,matrix.matrix);}
+    }else{
+      const buildingCount=this.quality==='low'?30:46;
+      const buildingMat=new THREE.MeshStandardMaterial({color:theme.building,roughness:.72,metalness:.35,emissive:0x090d25,emissiveIntensity:.8});const buildings=instances(buildingCount,boxGeo,buildingMat);
+      for(let i=0;i<buildingCount;i++){const angle=i/buildingCount*Math.PI*2,radius=300+random()*260,h=25+random()*125;matrix.position.set(Math.cos(angle)*radius,h/2,Math.sin(angle)*radius);matrix.rotation.set(0,angle+.5,0);matrix.scale.set(14+random()*22,h,14+random()*22);matrix.updateMatrix();buildings.setMatrixAt(i,matrix.matrix);}
+      const neonMat=new THREE.MeshBasicMaterial({color:theme.neon});const neonAlt=new THREE.MeshBasicMaterial({color:theme.neonAlt});const signs=instances(42,new THREE.BoxGeometry(.22,.12,4.8),neonMat);const signsAlt=instances(42,new THREE.BoxGeometry(.16,.1,3.5),neonAlt);
+      for(let i=0;i<42;i++){const angle=i/42*Math.PI*2,radius=285+random()*285,h=5+random()*45;matrix.position.set(Math.cos(angle)*radius,h,Math.sin(angle)*radius);matrix.rotation.set(0,angle,0);matrix.scale.set(1,1,1);matrix.updateMatrix();(i%2?signsAlt:signs).setMatrixAt(i,matrix.matrix);}
+      const skyline=instances(24,new THREE.BoxGeometry(.5,1,.5),new THREE.MeshBasicMaterial({color:theme.neonAlt}));for(let i=0;i<24;i++){const angle=i/24*Math.PI*2,radius=240+random()*50;matrix.position.set(Math.cos(angle)*radius,3,Math.sin(angle)*radius);matrix.scale.set(1,5+random()*5,1);matrix.updateMatrix();skyline.setMatrixAt(i,matrix.matrix);}
+    }
     this.pickups=[];const glow=new THREE.MeshBasicMaterial({color:0x9fffef});
     for(let i=0;i<16;i++){const p=pointAt(40+i*TRACK_LENGTH/16);const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(.5),glow);mesh.position.set(p.x,1.5,p.z);group.add(mesh);this.pickups.push({mesh,s:p.s});}
   }
   showGarage(){this.mode='garage';this.garage.visible=true;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
-  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.raceGroup.visible=true;const sky=getActiveMap().theme.sky;this.scene.background.set(sky);this.scene.fog=new THREE.Fog(sky,150,850);this.sun.intensity=2.6;this.fillLight.intensity=1.25;this.rim.intensity=.65;this.renderer.toneMappingExposure=1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
+  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.raceGroup.visible=true;const theme=getActiveMap().theme;this.scene.background.set(theme.sky);this.scene.fog=new THREE.Fog(theme.fog||theme.sky,theme.fogNear||150,theme.fogFar||850);const city=theme.environment==='city',coast=theme.environment==='coast';this.sun.intensity=city?.8:coast?3.1:2.6;this.fillLight.intensity=city?.7:coast?1.5:1.25;this.rim.intensity=city?2.2:coast?.9:.65;this.renderer.toneMappingExposure=city?1.18:1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
   thumbnails(){
     const result={};const oldId=this.car.userData.id;
     this.renderer.setSize(440,220,false);this.camera.aspect=2;this.camera.fov=35;this.camera.updateProjectionMatrix();this.camera.position.set(6,2.8,7.8);this.camera.lookAt(0,.7,0);
@@ -122,10 +139,10 @@ export class World {
         if(this.lastCameraMode!==this.cameraMode&&(this.cameraMode===2||this.lastCameraMode===2))this.camera.position.copy(desired);
         else this.camera.position.lerp(desired,1-Math.exp(-dt*6));
         this.lastCameraMode=this.cameraMode;
-        keepCameraClear(this.camera.position);
+        // The target is already kept inside the road. Re-clamping the smoothed
+        // camera each frame caused a visible snap at fast corners.
         const look=this.tmpLook.copy(target).addScaledVector(f,8);look.y=1;this.camera.lookAt(look);
         this.camera.fov+=( (player.boosting?76:65)-this.camera.fov)*dt*3;this.camera.updateProjectionMatrix();
-        if(player.collision>.2)this.camera.position.x+=Math.sin(time*90)*player.collision*.12;
         this.sun.position.set(player.x+20,35,player.z+15);this.sun.target.position.set(player.x,0,player.z);
       }
       for(const p of this.pickups){p.mesh.rotation.y=time;p.mesh.position.y=1.3+Math.sin(time*2+p.s)*.25;}

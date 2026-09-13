@@ -3,9 +3,9 @@
 const catmull=(a,b,c,d,t)=>.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
 const mapDefinition=(id,name,tag,controls,theme)=>({id,name,tag,controls,theme});
 export const TRACKS=[
-  mapDefinition('pinecrest','Pinecrest Circuit','FOREST RUN',[[0,0],[0,145],[-65,215],[-170,195],[-210,110],[-145,35],[-200,-60],[-120,-145],[10,-155],[110,-105],[100,-50],[40,-30]],{sky:'#bdd3df',asphalt:0xc4c7cb,grass:0xb6c6a7,barrier:0x899698}),
-  mapDefinition('coastline','Coastline Sprint','OCEAN DRIVE',[[0,0],[0,150],[-82,218],[-190,195],[-228,105],[-170,12],[-215,-88],[-120,-170],[20,-182],[145,-128],[150,-36],[62,-28]],{sky:'#b7d8df',asphalt:0xb9c6c4,grass:0x9fc6b1,barrier:0x78969b}),
-  mapDefinition('neon-loop','Neon Loop','CITY LIGHTS',[[0,0],[0,142],[-72,226],[-184,214],[-224,120],[-178,20],[-224,-84],[-122,-176],[20,-188],[148,-130],[154,-38],[58,-26]],{sky:'#9bb3cc',asphalt:0x989fae,grass:0x7c9b8e,barrier:0x657287}),
+  mapDefinition('pinecrest','Pinecrest Circuit','FOREST RUN',[[0,0],[0,145],[-65,215],[-170,195],[-210,110],[-145,35],[-200,-60],[-120,-145],[10,-155],[110,-105],[100,-50],[40,-30]],{environment:'forest',sky:'#bdd3df',fog:'#bdd3df',fogNear:150,fogFar:850,asphalt:0xc4c7cb,grass:0xb6c6a7,barrier:0x899698}),
+  mapDefinition('coastline','Coastline Sprint','OCEAN DRIVE',[[0,0],[0,150],[-82,218],[-190,195],[-228,105],[-170,12],[-215,-88],[-120,-170],[20,-182],[145,-128],[150,-36],[62,-28]],{environment:'coast',sky:'#f0c99f',fog:'#b7d8df',fogNear:180,fogFar:980,asphalt:0xb9c6c4,grass:0xcdbb8d,barrier:0x78969b,water:0x2a8fa8,foam:0xd8f3e8}),
+  mapDefinition('neon-loop','Neon Loop','CITY LIGHTS',[[0,0],[0,142],[-72,226],[-184,214],[-224,120],[-178,20],[-224,-84],[-122,-176],[20,-188],[148,-130],[154,-38],[58,-26]],{environment:'city',sky:'#090f24',fog:'#101a38',fogNear:100,fogFar:720,asphalt:0x34394e,grass:0x101729,barrier:0x657287,building:0x1c2444,neon:0x51e6ff,neonAlt:0xff43c7}),
 ];
 export const MAPS=TRACKS.map(({id,name,tag,theme})=>({id,name,tag,theme}));
 export const RANDOM_MAP_ID='random';
