@@ -84,10 +84,10 @@ export function stepRacer(r,input,dt,elapsed,progress=true) {
 }
 // Run all cars together, with short substeps so even head-on nitro impacts cannot
 // jump through another car between network ticks. Progress is awarded after contact resolution.
-export function stepRace(racers, inputFor, dt, elapsed, { progress = true } = {}) {
+export function stepRace(racers, inputFor, dt, elapsed, { progress = true, substeps = 120, collisionIterations = 40 } = {}) {
   if (!Number.isFinite(dt) || dt <= 0) return;
   dt = Math.min(dt, .1);
-  const steps = Math.ceil(dt * 120), subDt = dt / steps;
+  const steps = Math.max(1,Math.ceil(dt * substeps)), subDt = dt / steps;
   for (let i = 0; i < steps; i++) {
     const time = elapsed - dt + (i + 1) * subDt;
     for (const r of racers) {
@@ -98,7 +98,7 @@ export function stepRace(racers, inputFor, dt, elapsed, { progress = true } = {}
         r.x += r.vx * subDt; r.z += r.vz * subDt;
       }
     }
-    resolveCarCollisions(racers);
+    resolveCarCollisions(racers,{iterations:collisionIterations});
     if (progress) for (const r of racers) if (r.finishTime === null) updateProgress(r, time);
   }
 }

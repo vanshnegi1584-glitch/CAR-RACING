@@ -1,10 +1,11 @@
 import { createRacer,stepRace,ranking,EMPTY_INPUT } from '../shared/physics.js';
-import { setActiveTrack } from '../shared/track.js';
+import { MAPS,RANDOM_MAP_ID,setActiveTrack } from '../shared/track.js';
 export function startRace(room,now=Date.now()) {
   if(room.state!=='lobby')throw Error('Return to the lobby before starting a race.');
   const players=[...room.players.values()];
   if(players.length<2)throw Error('At least two drivers are needed. Try Quick Race for solo play.');
   if(!players.every(p=>p.ready&&p.connected))throw Error('All drivers must be connected and ready.');
+  if(room.mapId===RANDOM_MAP_ID)room.mapId=MAPS[Math.floor(Math.random()*MAPS.length)].id;
   setActiveTrack(room.mapId);
   room.state='racing';room.race={startsAt:now+3000,lastTick:now,elapsed:0,finishDeadline:null,states:players.map((p,i)=>createRacer(p.id,p.name,p.carId,i))};
   for(const p of players)p.input={...EMPTY_INPUT};

@@ -104,11 +104,11 @@ export function confineToTrack(r) {
   return near;
 }
 
-export function resolveCarCollisions(racers, { track = true } = {}) {
+export function resolveCarCollisions(racers, { track = true, iterations = 40 } = {}) {
   const ordered = [...racers].sort((a, b) => a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
   const inverseMass = ordered.map(r => 1 / Number(getCar(r.carId).weight.replaceAll(',', '')));
   // Multiple passes resolve a compact group instead of fixing one pair and breaking the next.
-  for (let iteration = 0; iteration < 40; iteration++) {
+  for (let iteration = 0; iteration < iterations; iteration++) {
     let largest = 0;
     for (let i = 0; i < ordered.length; i++) for (let j = i + 1; j < ordered.length; j++) {
       const a = ordered[i], b = ordered[j], contact = carContact(a, b);

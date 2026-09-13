@@ -8,6 +8,7 @@ export const TRACKS=[
   mapDefinition('neon-loop','Neon Loop','CITY LIGHTS',[[0,0],[0,142],[-72,226],[-184,214],[-224,120],[-178,20],[-224,-84],[-122,-176],[20,-188],[148,-130],[154,-38],[58,-26]],{sky:'#9bb3cc',asphalt:0x989fae,grass:0x7c9b8e,barrier:0x657287}),
 ];
 export const MAPS=TRACKS.map(({id,name,tag,theme})=>({id,name,tag,theme}));
+export const RANDOM_MAP_ID='random';
 export const TRACK_WIDTH=19,LAPS=3,GATES=12;
 export const TRACK=[];
 export let TRACK_LENGTH=0;

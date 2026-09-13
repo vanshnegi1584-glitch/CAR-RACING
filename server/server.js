@@ -8,6 +8,7 @@ import { existsSync } from 'node:fs';
 import { rooms,newRoom,publicRoom,validatePlayer } from './roomManager.js';
 import { startRace,tickRace,raceSnapshot } from './raceManager.js';
 import { sanitizeInput,EMPTY_INPUT,resetRacer } from '../shared/physics.js';
+import { MAPS,RANDOM_MAP_ID } from '../shared/track.js';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export async function createGameServer({production=false}={}) {
   const app=express(),http=createServer(app),io=new Server(http,{maxHttpBufferSize:4096});
@@ -59,6 +60,7 @@ export async function createGameServer({production=false}={}) {
       identity.room=room.code;socket.join(room.code);broadcast(room);return {};
     });
     action('select',data=>{const room=roomFor();if(room.state!=='lobby')throw Error('Change cars in the lobby.');const p=room.players.get(identity.id);Object.assign(p,validatePlayer({...p,carId:data.carId},room,identity.id),{ready:false});broadcast(room);return {};});
+    action('map',data=>{const room=roomFor();if(room.state!=='lobby')throw Error('Change maps in the lobby.');if(room.host!==identity.id)throw Error('Only the host can choose the map.');const mapId=String(data.mapId||'');if(mapId!==RANDOM_MAP_ID&&!MAPS.some(map=>map.id===mapId))throw Error('Choose a valid race map.');room.mapId=mapId;for(const p of room.players.values())p.ready=false;broadcast(room);return {};});
     action('ready',data=>{const room=roomFor();if(room.state!=='lobby')throw Error('The race has already started.');room.players.get(identity.id).ready=data.ready===true;broadcast(room);return {};});
     action('start',()=>{const room=roomFor();if(room.host!==identity.id)throw Error('Only the host can start the race.');startRace(room);broadcast(room);io.to(room.code).emit('snapshot',raceSnapshot(room));return {};});
     action('lobby',()=>{const room=roomFor();if(room.host!==identity.id)throw Error('The host can return everyone to the lobby.');if(room.state!=='results')throw Error('Wait for the race to finish.');room.state='lobby';room.race=null;for(const p of room.players.values())p.ready=false;broadcast(room);return {};});
