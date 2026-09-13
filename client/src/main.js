@@ -15,6 +15,9 @@ const settings={master:.6,music:.25,sfx:.7,mute:false,quality:matchMedia('(point
 let selected=localStorage.getItem('turborush-car')||'supra';if(!CARS.some(c=>c.id===selected))selected='supra';
 let resultsSignature='';
 let world,mode='garage',room=null,modal=null,previousFocus=null,racers=[],localId='you',elapsed=0,countdown=3,paused=false,localResults=false,onlineStarted=null,onlineState=null,snapshotAt=0,inputTimer=0,lastCheckpoint=0,toastTimer,checkpointTimer,lastCount='',lastLeaderboard='',fixedAccumulator=0;
+let pageHidden=false,frameRunning=false,rafId=0,initializing=false,debugFrames=0,debugTime=0,debugFps=0,debugAverage=0;
+const debugEnabled=new URLSearchParams(location.search).get('debug')==='1';
+if(debugEnabled)$('perf-panel').classList.remove('hidden');
 const audio=new GameAudio(settings);
 function toast(message){$('toast').textContent=message;$('toast').classList.remove('hidden');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('toast').classList.add('hidden'),4200);}
 function openModal(type,content){
@@ -26,7 +29,7 @@ function closeModal(){
   if(modal==='lobby'){return toast('Use Leave Room to exit the lobby.');}
   $('modal-backdrop').classList.add('hidden');modal=null;paused=false;controls.enabled=mode!=='garage';previousFocus?.focus?.();
 }
-function showGarage(){mode='garage';localResults=false;onlineStarted=null;racers=[];controls.clear();controls.enabled=false;$('garage-screen').classList.remove('hidden');$('race-screen').classList.add('hidden');world.showGarage();$('modal-backdrop').classList.add('hidden');modal=null;document.body.style.overflow='';}
+function showGarage(){mode='garage';localResults=false;onlineStarted=null;racers=[];controls.clear();controls.enabled=false;$('garage-screen').classList.remove('hidden');$('race-screen').classList.add('hidden');world.showGarage();$('modal-backdrop').classList.add('hidden');modal=null;document.body.classList.remove('race-active');}
 function updateCar(id){
   selected=id;localStorage.setItem('turborush-car',id);world.setCar(id);const car=getCar(id);
   $('ghost-name').textContent=car.name.toUpperCase();$('car-category').textContent=`${car.category} / ${car.number}`;$('brand-name').textContent=car.brand;
@@ -58,7 +61,7 @@ async function leaveOnline(){await run(async()=>{await network.action('leave');r
 function beginRace(type,states,id){
   mode=type;racers=states;localId=id;paused=false;localResults=false;lastCheckpoint=0;lastLeaderboard='';lastCount='';elapsed=0;countdown=3;fixedAccumulator=0;
   $('garage-screen').classList.add('hidden');$('race-screen').classList.remove('hidden');$('modal-backdrop').classList.add('hidden');modal=null;$('checkpoint-note').textContent='';
-  $('race-mode').textContent=type==='practice'?'QUICK RACE / VS AI':`ONLINE / ROOM ${room?.code||''}`;controls.clear();controls.enabled=true;document.body.style.overflow='hidden';world.showRace(states);
+  $('race-mode').textContent=type==='practice'?'QUICK RACE / VS AI':`ONLINE / ROOM ${room?.code||''}`;controls.clear();controls.enabled=true;document.body.classList.add('race-active');world.showRace(states);
   audio.start().catch(()=>{});
 }
 function quickRace(){
@@ -137,13 +140,17 @@ function updateHUD(){
   drawMinimap();if(me.finishTime!==null)showResults();
 }
 let lastTime=performance.now(),hudTick=0,resultTick=0;
+function updatePerformance(dt){
+  debugFrames++;debugTime+=dt;if(debugTime<.5)return;debugFps=debugFrames/debugTime;debugAverage=debugAverage?debugAverage*.8+debugFps*.2:debugFps;debugFrames=0;debugTime=0;world?.updateAdaptiveQuality?.(debugFps);
+  if(!debugEnabled)return;const stats=world?.getStats?.()||{};$('perf-panel').textContent=`FPS ${debugFps.toFixed(0)} (avg ${debugAverage.toFixed(0)})\nFRAME ${(1000/Math.max(debugFps,1)).toFixed(1)} ms\nDRAWS ${stats.drawCalls??'—'}  TRI ${stats.triangles??'—'}\nTEX ${stats.textures??'—'}  GEO ${stats.geometries??'—'}\nQUALITY ${stats.quality??'—'}  DPR ${Number(stats.pixelRatio||0).toFixed(2)}`;
+}
 function frame(now){
-  requestAnimationFrame(frame);const dt=Math.min((now-lastTime)/1000,.05);lastTime=now;const input=controls.input;
+  rafId=0;if(document.hidden){frameRunning=false;return;}const dt=Math.min(Math.max((now-lastTime)/1000,0),.05);lastTime=now;const input=controls.input;
   if(mode==='practice'&&!paused){
     if(countdown>0)countdown=Math.max(0,countdown-dt);
     else {
-      fixedAccumulator+=dt;
-      while(fixedAccumulator>=1/60){elapsed+=1/60;stepRace(racers,r=>r.bot?botInput(r,Number(r.id.slice(-1))):input,1/60,elapsed);fixedAccumulator-=1/60;}
+      fixedAccumulator=Math.min(fixedAccumulator+dt,.25);let steps=0;
+      while(fixedAccumulator>=1/60&&steps++<6){elapsed+=1/60;stepRace(racers,r=>r.bot?botInput(r,Number(r.id.slice(-1))):input,1/60,elapsed);fixedAccumulator-=1/60;}
     }
   }else if(mode==='online'){
     inputTimer+=dt;if(inputTimer>=1/30){network.input(input);inputTimer=0;}
@@ -159,24 +166,51 @@ function frame(now){
   }
   if(mode!=='garage'&&(hudTick+=dt)>.05){hudTick=0;updateHUD();}
   if(modal==='results'&&(resultTick+=dt)>.5){resultTick=0;refreshResults();}
-  world.render(dt,now/1000,racers,localId);audio.update(mode!=='garage'&&!paused,racers.find(r=>r.id===localId));
+  world.render(dt,now/1000,racers,localId);audio.update(mode!=='garage'&&!paused,racers.find(r=>r.id===localId));updatePerformance(dt);rafId=requestAnimationFrame(frame);
+}
+function startFrameLoop(){if(frameRunning||document.hidden)return;frameRunning=true;lastTime=performance.now();rafId=requestAnimationFrame(frame);}
+function webglAvailable(canvas){try{return !!(canvas.getContext('webgl2',{failIfMajorPerformanceCaveat:false})||canvas.getContext('webgl',{failIfMajorPerformanceCaveat:false})||canvas.getContext('experimental-webgl'));}catch{return false;}}
+function showWebGLError(error){
+  $('loading').classList.remove('hidden');$('loading').innerHTML='<div class="wordmark">TURBO<span>RUSH</span><sup>ONLINE</sup></div><h2>WebGL could not start.</h2><p>Enable hardware acceleration, then try again.</p><button class="primary" id="reload">TRY AGAIN</button>';
+  $('reload').onclick=()=>{world?.dispose?.();world=null;initializing=false;init();};console.error(error);
+}
+function updateFullscreenUI(){
+  const active=!!(document.fullscreenElement||document.webkitFullscreenElement);$('game-root').classList.toggle('fullscreen-active',active);$('game-root').classList.toggle('immersive-fallback',immersiveFallback||(!active&&!fullscreenSupported));for(const button of document.querySelectorAll('.fullscreen-control,#fullscreen')){button.innerHTML=active?'⛶ <span>EXIT FULLSCREEN</span>':'⛶ <span>ENTER FULLSCREEN</span>';button.setAttribute('aria-label',active?'Exit fullscreen':'Enter fullscreen');}
+}
+const fullscreenSupported=!!(document.documentElement.requestFullscreen||document.documentElement.webkitRequestFullscreen);let immersiveFallback=false;
+async function enterFullscreen(){
+  const root=$('game-root');immersiveFallback=true;root.classList.add('immersive-fallback');
+  try{if(root.requestFullscreen)await root.requestFullscreen({navigationUI:'hide'});else if(root.webkitRequestFullscreen)await root.webkitRequestFullscreen();else return toast('Fullscreen is unavailable; using immersive layout.');
+    try{await screen.orientation?.lock?.('landscape');}catch{}
+    immersiveFallback=false;
+  }catch(error){toast('Fullscreen was blocked. Using the immersive layout instead.');console.warn(error);}
+  updateFullscreenUI();
+}
+async function exitFullscreen(){immersiveFallback=false;try{if(document.exitFullscreen)await document.exitFullscreen();else if(document.webkitExitFullscreen)await document.webkitExitFullscreen();}catch{toast('The browser did not allow fullscreen exit.');}try{screen.orientation?.unlock?.();}catch{}updateFullscreenUI();}
+function toggleFullscreen(){return (document.fullscreenElement||document.webkitFullscreenElement)?exitFullscreen():enterFullscreen();}
+function bindFullscreen(){
+  document.querySelectorAll('.fullscreen-control,#fullscreen').forEach(button=>button.addEventListener('click',()=>run(toggleFullscreen)));
+  document.addEventListener('fullscreenchange',updateFullscreenUI);document.addEventListener('webkitfullscreenchange',updateFullscreenUI);document.addEventListener('fullscreenerror',()=>toast('Fullscreen is unavailable on this browser.'));document.addEventListener('webkitfullscreenerror',()=>toast('Fullscreen is unavailable on this browser.'));updateFullscreenUI();
 }
 async function init(){
+  if(initializing)return;initializing=true;
   try{
-    world=new World($('world'));world.setQuality(settings.quality);world.showGarage();
+    if(!webglAvailable($('world')))throw Error('WebGL is unavailable');
+    world=new World($('world'),$('game-root'),{onContextLost:()=>{pageHidden=true;controls.clear();toast('Graphics paused. Restore the browser tab or retry WebGL.');},onContextRestored:()=>{pageHidden=false;lastTime=performance.now();toast('Graphics restored.');startFrameLoop();}});world.setQuality(settings.quality);world.showGarage();
     const thumbnails=world.thumbnails();
     $('car-cards').innerHTML=CARS.map(car=>`<button class="car-card" data-car="${car.id}" aria-label="Select ${car.brand} ${car.name}" aria-pressed="false"><span class="card-no">${car.number}</span><span class="card-tag">${car.category}</span><img src="${thumbnails[car.id]}" alt="${car.brand} ${car.name}-inspired 3D car"><div class="card-info"><div><h3>${car.id==='supra'?'Toyota Supra':car.id==='bmw'?'BMW M4':'Bugatti Chiron'}</h3><p>${car.id==='supra'?'THE STREET LEGEND':car.id==='bmw'?'PRECISION IN MOTION':'BEYOND THE LIMIT'}</p></div><span class="card-check">✓</span></div></button>`).join('');
     document.querySelectorAll('.car-card').forEach(el=>el.onclick=()=>updateCar(el.dataset.car));updateCar(selected);drawTrackPreview();saveSettings();
-    $('loading').classList.add('hidden');requestAnimationFrame(frame);
-  }catch(error){$('loading').innerHTML='<h2>WebGL could not start.</h2><p>Enable hardware acceleration in your browser, then reload.</p><button class="primary" id="reload">TRY AGAIN</button>';$('reload').onclick=()=>location.reload();console.error(error);}
+    $('loading').classList.add('hidden');startFrameLoop();
+  }catch(error){showWebGLError(error);}finally{initializing=false;}
 }
 $('quick-race').onclick=quickRace;$('race-friends').onclick=showOnline;$('nav-online').onclick=showOnline;$('nav-help').onclick=showHelp;$('nav-garage').onclick=()=>{if(room)renderLobby();else if(modal)closeModal();};$('home-link').onclick=e=>{e.preventDefault();$('nav-garage').click();};$('settings-button').onclick=showSettings;$('sound-button').onclick=()=>{settings.mute=!settings.mute;audio.start().catch(()=>{});saveSettings();toast(settings.mute?'Sound muted':'Sound enabled');};
-$('fullscreen').onclick=()=>run(async()=>{if(document.fullscreenElement)await document.exitFullscreen();else if(document.documentElement.requestFullscreen)await document.documentElement.requestFullscreen();else toast('Fullscreen is managed by your browser on this device.');});
 $('pause-button').onclick=pauseMenu;$('close-modal').onclick=()=>{if(modal==='results')toast('Choose Race Again, Garage, or Leave Room to continue.');else closeModal();};
 document.addEventListener('keydown',e=>{
   if(!modal)return;if(e.key==='Escape'&&modal!=='lobby'&&modal!=='results'){e.preventDefault();closeModal();}
   if(e.key==='Tab'){const els=[...$('modal-backdrop').querySelectorAll('button:not(:disabled),input,select')];if(e.shiftKey&&document.activeElement===els[0]){e.preventDefault();els.at(-1).focus();}else if(!e.shiftKey&&document.activeElement===els.at(-1)){e.preventDefault();els[0].focus();}}
 });
 let drag=null;$('world').addEventListener('pointerdown',e=>{if(mode!=='garage'||modal)return;drag={x:e.clientX,orbit:world.orbit};$('world').setPointerCapture(e.pointerId);});$('world').addEventListener('pointermove',e=>{if(drag)world.orbit=drag.orbit+(e.clientX-drag.x)*.006;});$('world').addEventListener('pointerup',()=>drag=null);$('world').addEventListener('pointercancel',()=>drag=null);
-document.addEventListener('visibilitychange',()=>{if(document.hidden&&mode==='practice'&&!modal)pauseMenu();});
+bindFullscreen();
+document.addEventListener('visibilitychange',()=>{pageHidden=document.hidden;if(pageHidden){controls.clear();if(mode==='practice'&&!modal)paused=true;frameRunning=false;lastTime=performance.now();}else{lastTime=performance.now();startFrameLoop();}});
+window.addEventListener('pagehide',()=>{pageHidden=true;controls.clear();frameRunning=false;});window.addEventListener('pageshow',()=>{pageHidden=false;lastTime=performance.now();startFrameLoop();});
 init();

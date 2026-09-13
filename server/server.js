@@ -80,7 +80,13 @@ export async function createGameServer({production=false}={}) {
     if(tick++%60===0)for(const [token,identity]of identities)if(identity.expires&&identity.expires<now){const room=rooms.get(identity.room);if(room)removePlayer(room,identity.id);identities.delete(token);}
   },1000/60);
   let vite;
-  if(production){app.use(express.static(path.join(root,'dist')));app.get('/{*path}',(_req,res)=>res.sendFile(path.join(root,'dist/index.html')));}
+  if(production){
+    app.use(express.static(path.join(root,'dist'),{setHeaders:(res,file)=>{
+      if(/[/\\]assets[/\\]/.test(file))res.setHeader('Cache-Control','public,max-age=31536000,immutable');
+      else res.setHeader('Cache-Control','no-cache');
+    }}));
+    app.get('/{*path}',(_req,res)=>{res.setHeader('Cache-Control','no-cache');res.sendFile(path.join(root,'dist/index.html'));});
+  }
   else {const {createServer:createViteServer}=await import('vite');vite=await createViteServer({configFile:path.join(root,'vite.config.js'),server:{middlewareMode:true,hmr:{server:http}}});app.use(vite.middlewares);}
   return {app,http,io,close:async()=>{clearInterval(timer);await vite?.close();await new Promise(resolve=>io.close(resolve));}};
 }

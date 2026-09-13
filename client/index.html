@@ -2,8 +2,8 @@
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="theme-color" content="#131a21"><meta name="description" content="Pick your icon. Chase the apex. A playable 3D arcade racer with Supra, BMW M4 and Bugatti Chiron-inspired cars."><title>TURBORUSH — Pick your icon.</title><link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%23c9f879'/%3E%3Cpath d='M14 18h42l-5 10H37L24 49H12l13-21H9z' fill='%23121b20'/%3E%3C/svg%3E"></head>
 <body>
+  <div id="game-root" class="immersive-root">
   <canvas id="world" aria-label="Interactive 3D car showroom and racing circuit"></canvas>
-  <div id="loading"><div class="wordmark">TURBO<span>RUSH</span><sup>ONLINE</sup></div><div class="loading-track"><i></i></div><p>WARMING UP THE ENGINES</p></div>
   <div id="app">
     <section id="garage-screen" class="screen">
       <header class="topbar">
@@ -25,7 +25,7 @@
       <footer class="garage-footer"><span><i></i> ALL CARS UNLOCKED. ALL YOU.</span><span>ORIGINAL 3D MODELS <b>/</b> INSPIRED BY THE LEGENDS</span><button id="fullscreen">⛶ <span>FULLSCREEN</span></button></footer>
     </section>
     <section id="race-screen" class="screen hidden">
-      <div class="race-top"><div class="race-brand">TURBO<span>RUSH</span><small id="race-mode">QUICK RACE / VS AI</small></div><div class="lap-block"><span>LAP</span><strong id="lap">1<small>/ 3</small></strong></div><div class="timer-block"><span>RACE TIME</span><strong id="race-time">00:00.000</strong></div><button class="icon-button" id="pause-button" aria-label="Pause menu">Ⅱ</button></div>
+      <div class="race-top"><div class="race-brand">TURBO<span>RUSH</span><small id="race-mode">QUICK RACE / VS AI</small></div><div class="lap-block"><span>LAP</span><strong id="lap">1<small>/ 3</small></strong></div><div class="timer-block"><span>RACE TIME</span><strong id="race-time">00:00.000</strong></div><button class="icon-button fullscreen-control" id="fullscreen-race" aria-label="Enter fullscreen">⛶</button><button class="icon-button" id="pause-button" aria-label="Pause menu">Ⅱ</button></div>
       <div class="leaderboard"><div class="position-line"><strong id="position">1<small>/ 4</small></strong><span>POSITION</span></div><div id="leaderboard-rows"></div></div>
       <canvas id="minimap" width="220" height="190" aria-label="Live circuit minimap"></canvas>
       <div class="checkpoint-note" id="checkpoint-note"></div><div class="countdown" id="countdown"></div>
@@ -36,6 +36,9 @@
   </div>
   <div id="modal-backdrop" class="hidden"><section class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"><button id="close-modal" class="modal-close" aria-label="Close dialog">×</button><div id="modal-content"></div></section></div>
   <div id="toast" role="status" class="hidden"></div>
+  <div id="perf-panel" class="hidden" aria-hidden="true"></div>
+  </div>
+  <div id="loading"><div class="wordmark">TURBO<span>RUSH</span><sup>ONLINE</sup></div><div class="loading-track"><i></i></div><p>WARMING UP THE ENGINES</p></div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
