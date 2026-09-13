@@ -1,0 +1,7 @@
+// Arcade tuning, not manufacturer specifications. All models are original procedural meshes.
+export const CARS = [
+  { id: 'supra', brand: 'TOYOTA', name: 'Supra', edition: 'MK IV · STREET LEGEND', category: 'JDM ICON', color: '#fb6c28', accent: '#ffad64', power: '680', drive: 'RWD', weight: '1,490', speed: 76, acceleration: 23, handling: 1.9, grip: 7.2, nitro: 100, stats: [82, 85, 88], description: 'The icon. Reimagined.', detail: 'A long hood. A big wing. A straight-six attitude. Make every corner your signature.', number: '01' },
+  { id: 'bmw', brand: 'BMW', name: 'M4', edition: 'COMPETITION · PRECISION BUILT', category: 'GERMAN PRECISION', color: '#78c9b3', accent: '#aaf4ce', power: '620', drive: 'RWD', weight: '1,625', speed: 72, acceleration: 25, handling: 2.1, grip: 9.5, nitro: 110, stats: [78, 91, 96], description: 'Own the racing line.', detail: 'Sculpted shoulders. An unmistakable twin grille. Precision through every apex.', number: '02' },
+  { id: 'bugatti', brand: 'BUGATTI', name: 'Chiron', edition: 'HYPERSPORT · BEYOND LIMITS', category: 'HYPERCAR', color: '#5288ed', accent: '#9bbaff', power: '1,500', drive: 'AWD', weight: '1,995', speed: 91, acceleration: 28, handling: 1.65, grip: 8.2, nitro: 90, stats: [100, 98, 76], description: 'Leave ordinary behind.', detail: 'A sweeping C-line. A planted stance. Relentless power when the straight opens up.', number: '03' },
+];
+export const getCar = id => CARS.find(car => car.id === id) || CARS[0];
