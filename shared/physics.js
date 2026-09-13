@@ -22,7 +22,7 @@ export function stepDriving(r,input,dt) {
   const car=getCar(r.carId);
   const requested=(input.left?1:0)-(input.right?1:0);
   // Release and countersteer promptly; entering a turn builds up more gently.
-  const steeringResponse=requested===0?18:requested*r.steer<0?20:12;
+  const steeringResponse=requested===0?20:requested*r.steer<0?24:16;
   r.steer+=(requested-r.steer)*(1-Math.exp(-dt*steeringResponse));
   const forwardX=Math.sin(r.yaw),forwardZ=Math.cos(r.yaw);
   let forward=r.vx*forwardX+r.vz*forwardZ;
@@ -38,7 +38,7 @@ export function stepDriving(r,input,dt) {
   if(input.brake)forward-=dt*(forward>0?43:13);
   forward=Math.max(-15,Math.min(car.speed*(r.boosting?1.35:1),forward));
   const speed=Math.abs(forward);
-  let turnRate=r.steer*car.handling*1.08*Math.min(speed/16,1)/(1+(speed/48)**1.4);
+  let turnRate=r.steer*car.handling*1.12*Math.min(speed/16,1)/(1+(speed/60)**1.4);
   turnRate*=Math.sign(forward)*(1+r.driftAmount*.08);
   // Stabilize excessive oversteer while preserving the driver's ability to countersteer.
   if(forward>8){
@@ -46,9 +46,9 @@ export function stepDriving(r,input,dt) {
     if(turnRate*slip>0)turnRate*=Math.max(0,Math.min(1,(.55-Math.abs(slip))/.15));
   }
   r.yawRate??=0;
-  r.yawRate+=(turnRate-r.yawRate)*(1-Math.exp(-dt*16));
+  r.yawRate+=(turnRate-r.yawRate)*(1-Math.exp(-dt*22));
   if(speed<.15)r.yawRate=0;
-  r.wheelSteer=r.steer*.52/(1+speed/50);
+  r.wheelSteer=r.steer*.58/(1+speed/50);
 
   // Reconstruct in the OLD body frame first. Then rotate the body and re-project BOTH
   // components together. Mixing an old forward component with a new sideways component

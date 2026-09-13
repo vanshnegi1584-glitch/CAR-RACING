@@ -181,7 +181,9 @@ function frame(now){
       while(fixedAccumulator>=1/60&&steps++<6){elapsed+=1/60;stepRace(racers,r=>r.bot?botInput(r,Number(r.id.slice(-1))):input,1/60,elapsed,{substeps:60,collisionIterations:16});fixedAccumulator-=1/60;}
     }
   }else if(mode==='online'){
-    inputTimer+=dt;if(inputTimer>=1/30){network.input(input);inputTimer=0;}
+    // Match the server's 60 Hz physics tick so a steering change is not held
+    // for an extra 20–33 ms before the authoritative simulation sees it.
+    inputTimer+=dt;if(inputTimer>=1/60){network.input(input);inputTimer=0;}
     const connected=network.socket.connected&&now-snapshotAt<1000;
     if(connected){if(countdown>0)countdown=Math.max(0,countdown-dt);else if(onlineState==='racing'){
       elapsed+=dt;
@@ -197,7 +199,7 @@ function frame(now){
   world.render(dt,now/1000,racers,localId);audio.update(mode!=='garage'&&!paused,racers.find(r=>r.id===localId));updatePerformance(dt);rafId=requestAnimationFrame(frame);
 }
 function startFrameLoop(){if(frameRunning||document.hidden)return;frameRunning=true;lastTime=performance.now();rafId=requestAnimationFrame(frame);}
-function webglAvailable(canvas){try{return !!(canvas.getContext('webgl2',{failIfMajorPerformanceCaveat:false})||canvas.getContext('webgl',{failIfMajorPerformanceCaveat:false})||canvas.getContext('experimental-webgl'));}catch{return false;}}
+function webglAvailable(canvas){try{const antialias=!matchMedia?.('(pointer:coarse)').matches,options={failIfMajorPerformanceCaveat:false,antialias};return !!(canvas.getContext('webgl2',options)||canvas.getContext('webgl',options)||canvas.getContext('experimental-webgl',options));}catch{return false;}}
 function showWebGLError(error){
   $('loading').classList.remove('hidden');$('loading').innerHTML='<div class="wordmark">TURBO<span>RUSH</span><sup>ONLINE</sup></div><h2>WebGL could not start.</h2><p>Enable hardware acceleration, then try again.</p><button class="primary" id="reload">TRY AGAIN</button>';
   $('reload').onclick=()=>{world?.dispose?.();world=null;initializing=false;init();};console.error(error);

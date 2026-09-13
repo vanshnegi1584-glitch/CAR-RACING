@@ -97,7 +97,22 @@ export function makeCar(id,colorOverride){
   return root;
 }
 export function updateCarModel(model,r,time,dt=0){
-  model.position.set(r.x,.025+Math.sin(time*20)*Math.min(Math.abs(r.speed)/5000,.014),r.z);model.rotation.y=r.yaw;
+  const targetY=.025+Math.sin(time*20)*Math.min(Math.abs(r.speed)/5000,.014);
+  // Physics is stepped at a fixed rate while rendering happens at the display
+  // rate. Interpolate the visual transform between those samples so the car
+  // does not visibly snap (especially on 90/120Hz phones). Spawn/reset frames
+  // use an exact placement before smoothing starts.
+  const ready=model.userData.renderReady===true;
+  const blend=ready&&dt>0?1-Math.exp(-Math.min(dt,.05)*28):1;
+  if(blend>=.999){model.position.set(r.x,targetY,r.z);model.rotation.y=r.yaw;}
+  else{
+    model.position.x+=(r.x-model.position.x)*blend;
+    model.position.y+=(targetY-model.position.y)*blend;
+    model.position.z+=(r.z-model.position.z)*blend;
+    const yawDelta=Math.atan2(Math.sin(r.yaw-model.rotation.y),Math.cos(r.yaw-model.rotation.y));
+    model.rotation.y+=yawDelta*blend;
+  }
+  model.userData.renderReady=true;
   const wheelStep=r.finishTime!==null?0:r.speed*Math.max(0,Math.min(dt,.05))/.43;
   for(const {pivot,rolling,front}of model.userData.wheels){
     pivot.rotation.y=front?(r.wheelSteer??r.steer*.33):0;

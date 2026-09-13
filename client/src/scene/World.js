@@ -7,7 +7,12 @@ import { surfaceTexture } from './SurfaceTextures.js';
 export class World {
   constructor(canvas,root=document.getElementById('game-root'),hooks={}){
     this.canvas=canvas;this.root=root;this.hooks=hooks;this.resizeObserver=null;
-    this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
+    // MSAA is expensive on touch GPUs and is the biggest fixed render cost
+    // before the quality selector has had a chance to run. The game already
+    // uses DPR caps and post-lighting, so keep antialiasing for desktop while
+    // letting phones spend their frame time on the race scene.
+    const touchDevice=window.matchMedia?.('(pointer:coarse)').matches;
+    this.renderer=new THREE.WebGLRenderer({canvas,antialias:!touchDevice,alpha:false,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
     this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.25;
     this.camera=new THREE.PerspectiveCamera(38,1,.1,1700);
@@ -40,8 +45,8 @@ export class World {
     this.renderer.setPixelRatio(this.pixelRatio||Math.min(window.devicePixelRatio||1,1.5));this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.size={width,height};
   }
   setQuality(value){
-    this.quality=value;const dpr=Math.min(window.devicePixelRatio||1,1.5);this.pixelRatio=value==='low'?Math.min(dpr,1):dpr;
-    this.renderer.shadowMap.enabled=value!=='low';const shadowSize=value==='low'?512:value==='medium'?1024:1536;this.sun.shadow.mapSize.set(shadowSize,shadowSize);this.renderer.setPixelRatio(this.pixelRatio);this.resize();
+    this.quality=value;const dpr=Math.min(window.devicePixelRatio||1,1.5),touchDevice=window.matchMedia?.('(pointer:coarse)').matches;this.pixelRatio=value==='low'?Math.min(dpr,1):touchDevice?Math.min(dpr,1.25):dpr;
+    this.renderer.shadowMap.enabled=value!=='low'&&!touchDevice;const shadowSize=value==='low'?512:value==='medium'?1024:1536;this.sun.shadow.mapSize.set(shadowSize,shadowSize);this.renderer.setPixelRatio(this.pixelRatio);this.resize();
   }
   updateAdaptiveQuality(fps){
     if(!this.adaptiveQuality||!Number.isFinite(fps)||this.qualityCooldown>0){this.qualityCooldown=Math.max(0,this.qualityCooldown-.5);return;}
@@ -144,14 +149,14 @@ export class World {
         // Do not fly the camera through the cabin when entering or leaving hood view.
         const cameraChanged=this.lastCameraMode!==this.cameraMode;
         if(cameraChanged&&(this.cameraMode===2||this.lastCameraMode===2))this.camera.position.copy(desired);
-        else this.camera.position.lerp(desired,1-Math.exp(-dt*6));
+        else this.camera.position.lerp(desired,1-Math.exp(-dt*5));
         this.lastCameraMode=this.cameraMode;
         // The target is already kept inside the road. Re-clamping the smoothed
         // camera each frame caused a visible snap at fast corners.
         const look=this.tmpLook.copy(target).addScaledVector(f,8);look.y=1;
-        if(!this.cameraLookReady||cameraChanged)this.cameraLook.copy(look);else this.cameraLook.lerp(look,1-Math.exp(-dt*10));
+        if(!this.cameraLookReady||cameraChanged)this.cameraLook.copy(look);else this.cameraLook.lerp(look,1-Math.exp(-dt*7));
         this.cameraLookReady=true;this.camera.lookAt(this.cameraLook);
-        this.camera.fov+=( (player.boosting?76:65)-this.camera.fov)*dt*3;this.camera.updateProjectionMatrix();
+        const targetFov=player.boosting?76:65;if(Math.abs(targetFov-this.camera.fov)>.05){this.camera.fov+=(targetFov-this.camera.fov)*Math.min(1,dt*3);this.camera.updateProjectionMatrix();}
         this.sun.position.set(player.x+20,35,player.z+15);this.sun.target.position.set(player.x,0,player.z);
       }
       for(const p of this.pickups){p.mesh.rotation.y=time;p.mesh.position.y=1.3+Math.sin(time*2+p.s)*.25;}
