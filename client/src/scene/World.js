@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { TRACK,TRACK_LENGTH,TRACK_WIDTH,pointAt,edgePoint,edgeSegments,BARRIERS } from '../../../shared/track.js';
+import { TRACK,TRACK_LENGTH,TRACK_WIDTH,pointAt,edgePoint,edgeSegments,BARRIERS,getActiveMap } from '../../../shared/track.js';
 import { makeCar,updateCarModel } from '../cars/CarModel.js';
 import { seeded,generateTrees,keepCameraClear } from '../../../shared/scenery.js';
 import { surfaceTexture } from './SurfaceTextures.js';
@@ -47,13 +47,15 @@ export class World {
   }
   getStats(){const info=this.renderer.info;return {drawCalls:info.render.calls,triangles:info.render.triangles,textures:info.memory.textures,geometries:info.memory.geometries,pixelRatio:this.renderer.getPixelRatio(),size:this.size,quality:this.quality||'medium'};}
   dispose(){this.resizeObserver?.disconnect();window.removeEventListener('resize',this.onWindowResize);this.models.clear();this.renderer.dispose();this.renderer.forceContextLoss?.();}
+  resetTrack(){if(!this.raceGroup)return;this.scene.remove(this.raceGroup);this.disposeObject(this.raceGroup);this.raceGroup=null;this.pickups=[];}
   setCar(id){if(this.car.userData.id===id)return;this.garage.remove(this.car);this.disposeObject(this.car);this.car=makeCar(id);this.garage.add(this.car);}
   setPaint(color){this.car.userData.paint.color.set(color);}
   disposeObject(root){const geometries=new Set(),materials=new Set();root.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)for(const m of Array.isArray(o.material)?o.material:[o.material])materials.add(m);});for(const g of geometries)g.dispose();for(const m of materials){m.map?.dispose();m.dispose();}}
   buildTrack(){
     if(this.raceGroup)return;const group=this.raceGroup=new THREE.Group();this.scene.add(group);
     const asphaltMap=surfaceTexture('asphalt');asphaltMap.repeat.set(5,1);asphaltMap.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());
-    const asphalt=new THREE.MeshStandardMaterial({map:asphaltMap,color:0xc4c7cb,roughness:.98,envMapIntensity:.12});
+    const theme=getActiveMap().theme;
+    const asphalt=new THREE.MeshStandardMaterial({map:asphaltMap,color:theme.asphalt,roughness:.98,envMapIntensity:.12});
     const strip=(inner,outer,material,height=.025)=>{
       const v=[],uv=[],indices=[];
       for(let i=0;i<=TRACK.length;i++){const p=TRACK[i%TRACK.length],s=i===TRACK.length?TRACK_LENGTH:p.s,a=edgePoint(p,inner),b=edgePoint(p,outer);v.push(a.x,height,a.z,b.x,height,b.z);uv.push(0,s/4,1,s/4);if(i<TRACK.length){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}}
@@ -61,11 +63,11 @@ export class World {
     };
     strip(-TRACK_WIDTH/2,TRACK_WIDTH/2,asphalt);
     const grassMap=surfaceTexture('grass');grassMap.repeat.set(300,300);
-    const grass=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.MeshStandardMaterial({map:grassMap,color:0xb6c6a7,roughness:1,envMapIntensity:.08}));grass.rotation.x=-Math.PI/2;grass.position.y=-.07;grass.receiveShadow=true;group.add(grass);
+    const grass=new THREE.Mesh(new THREE.PlaneGeometry(2400,2400),new THREE.MeshStandardMaterial({map:grassMap,color:theme.grass,roughness:1,envMapIntensity:.08}));grass.rotation.x=-Math.PI/2;grass.position.y=-.07;grass.receiveShadow=true;group.add(grass);
     const gravel=new THREE.MeshStandardMaterial({map:surfaceTexture('gravel'),roughness:1,envMapIntensity:.1,side:THREE.DoubleSide});
     for(const side of[-1,1])strip(side*9.5,side*12,gravel,.008);
     for(const side of [-1,1])strip(side*9.1,side*9.25,new THREE.MeshBasicMaterial({color:0xe6e3bd,side:THREE.DoubleSide}),.04);
-    const boxGeo=new THREE.BoxGeometry(1,1,1),white=new THREE.MeshStandardMaterial({color:0xe6e8df}),red=new THREE.MeshStandardMaterial({color:0xc14d36}),barrierMat=new THREE.MeshStandardMaterial({color:0x899698,metalness:.45,roughness:.48});
+    const boxGeo=new THREE.BoxGeometry(1,1,1),white=new THREE.MeshStandardMaterial({color:0xe6e8df}),red=new THREE.MeshStandardMaterial({color:0xc14d36}),barrierMat=new THREE.MeshStandardMaterial({color:theme.barrier,metalness:.45,roughness:.48});
     const instances=(count,geometry,mat)=>{const m=new THREE.InstancedMesh(geometry,mat,count);m.receiveShadow=true;group.add(m);return m;};
     const matrix=new THREE.Object3D();
     const curbSegments=[-1,1].flatMap(side=>edgeSegments(side*9.65,.9));
@@ -83,7 +85,7 @@ export class World {
       const canvas=document.createElement('canvas');canvas.width=1024;canvas.height=128;const ctx=canvas.getContext('2d');ctx.fillStyle='#172327';ctx.fillRect(0,0,1024,128);ctx.fillStyle=color;ctx.fillRect(0,120,1024,8);ctx.font='bold 60px sans-serif';ctx.textAlign='center';ctx.fillText(text,512,86);const texture=new THREE.CanvasTexture(canvas);texture.colorSpace=THREE.SRGBColorSpace;
       const banner=new THREE.Mesh(new THREE.BoxGeometry(21.7,1.4,.25),new THREE.MeshStandardMaterial({map:texture,roughness:.85}));banner.position.y=10;gate.add(banner);
     };
-    makeSign('TURBORUSH  /  START',0);for(let i=1;i<12;i++)makeSign(i%3===0?'HIT THE APEX':'CHECKPOINT  '+String(i).padStart(2,'0'),i*TRACK_LENGTH/12,i%3===0?'#f99c6b':'#d0e6e4');
+    makeSign(`TURBORUSH  /  ${getActiveMap().name.toUpperCase()}`,0);for(let i=1;i<12;i++)makeSign(i%3===0?'HIT THE APEX':'CHECKPOINT  '+String(i).padStart(2,'0'),i*TRACK_LENGTH/12,i%3===0?'#f99c6b':'#d0e6e4');
     const random=seeded(93),allTrees=generateTrees(),trees=this.quality==='low'?allTrees.filter((_,i)=>i%2===0):allTrees;
     const leaves=instances(trees.length*3,new THREE.ConeGeometry(1,2,9),new THREE.MeshStandardMaterial({color:0x597c58,roughness:1,envMapIntensity:.1}));const trunks=instances(trees.length,new THREE.CylinderGeometry(.15,.22,1,6),new THREE.MeshStandardMaterial({color:0x594633,roughness:1}));
     trees.forEach((t,i)=>{matrix.rotation.set(0,t.yaw,0);matrix.position.set(t.x,t.scale*.4,t.z);matrix.scale.set(1,t.scale,1);matrix.updateMatrix();trunks.setMatrixAt(i,matrix.matrix);for(let j=0;j<3;j++){matrix.position.y=t.scale*(.7+j*.32);matrix.scale.set(t.scale*(.6-j*.14),t.scale*.5,t.scale*(.6-j*.14));matrix.updateMatrix();leaves.setMatrixAt(i*3+j,matrix.matrix);leaves.setColorAt(i*3+j,new THREE.Color().setHSL(.27+t.tint*.09,.23,.55+j*.045));}});
@@ -94,7 +96,7 @@ export class World {
     for(let i=0;i<16;i++){const p=pointAt(40+i*TRACK_LENGTH/16);const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(.5),glow);mesh.position.set(p.x,1.5,p.z);group.add(mesh);this.pickups.push({mesh,s:p.s});}
   }
   showGarage(){this.mode='garage';this.garage.visible=true;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
-  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.raceGroup.visible=true;this.scene.background.set('#bdd3df');this.scene.fog=new THREE.Fog(0xbdd3df,150,850);this.sun.intensity=2.6;this.fillLight.intensity=1.25;this.rim.intensity=.65;this.renderer.toneMappingExposure=1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
+  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.raceGroup.visible=true;const sky=getActiveMap().theme.sky;this.scene.background.set(sky);this.scene.fog=new THREE.Fog(sky,150,850);this.sun.intensity=2.6;this.fillLight.intensity=1.25;this.rim.intensity=.65;this.renderer.toneMappingExposure=1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
   thumbnails(){
     const result={};const oldId=this.car.userData.id;
     this.renderer.setSize(440,220,false);this.camera.aspect=2;this.camera.fov=35;this.camera.updateProjectionMatrix();this.camera.position.set(6,2.8,7.8);this.camera.lookAt(0,.7,0);

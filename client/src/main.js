@@ -4,7 +4,7 @@ import { Controls } from './controls/Controls.js';
 import { GameAudio } from './audio/Audio.js';
 import { NetworkManager } from './multiplayer/NetworkManager.js';
 import { CARS,getCar } from '../../shared/cars.js';
-import { TRACK,TRACK_LENGTH,LAPS,angleDiff } from '../../shared/track.js';
+import { TRACK,TRACK_LENGTH,LAPS,angleDiff,MAPS,getActiveMap,setActiveTrack } from '../../shared/track.js';
 import { createRacer,stepRacer,stepRace,ranking,botInput,resetRacer,EMPTY_INPUT } from '../../shared/physics.js';
 import { resolveCarCollisions } from '../../shared/collisions.js';
 const $=id=>document.getElementById(id);
@@ -13,6 +13,7 @@ const formatTime=(seconds,precise=false)=>seconds==null?'—':`${String(Math.flo
 function readStorage(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback;}catch{return fallback;}}
 const settings={master:.6,music:.25,sfx:.7,mute:false,quality:matchMedia('(pointer:coarse)').matches?'low':'medium',...readStorage('turborush-settings',{})};
 let selected=localStorage.getItem('turborush-car')||'supra';if(!CARS.some(c=>c.id===selected))selected='supra';
+let selectedMapId=localStorage.getItem('turborush-map')||'pinecrest';if(!MAPS.some(map=>map.id===selectedMapId))selectedMapId='pinecrest';
 let resultsSignature='';
 let world,mode='garage',room=null,modal=null,previousFocus=null,racers=[],localId='you',elapsed=0,countdown=3,paused=false,localResults=false,onlineStarted=null,onlineState=null,snapshotAt=0,inputTimer=0,lastCheckpoint=0,toastTimer,checkpointTimer,lastCount='',lastLeaderboard='',fixedAccumulator=0;
 let pageHidden=false,frameRunning=false,rafId=0,initializing=false,debugFrames=0,debugTime=0,debugFps=0,debugAverage=0;
@@ -42,7 +43,7 @@ function updateCar(id){
 function showOnline(){
   if(room)return renderLobby();
   openModal('online',`<div class="eyebrow">BETTER WITH A RIVAL</div><h2 id="modal-title">The grid is waiting.</h2><p class="subtitle">Create a room, share the code, and settle it on the track.<br>2–8 drivers. Desktop and mobile, racing together.</p><label class="field">YOUR DRIVER NAME<input id="driver-name" maxlength="18" placeholder="Enter your name" autocomplete="nickname" value="${escapeHTML(localStorage.getItem('turborush-name')||'')}"></label><button class="primary" id="create-room">CREATE A ROOM <span>↗</span></button><div class="divider"><span>HAVE A CODE?</span></div><div class="join-row"><label class="field"><input id="join-code" placeholder="ROOM CODE" maxlength="5" autocapitalize="characters" aria-label="Room code"></label><button class="secondary" id="join-room">JOIN RACE →</button></div><p class="form-note">On the same Wi-Fi? Open this server's LAN address on your phone. To race over the internet, run it on a public server.</p>`);
-  const data=()=>{const name=$('driver-name').value.trim();localStorage.setItem('turborush-name',name);return {name,carId:selected};};
+  const data=()=>{const name=$('driver-name').value.trim();localStorage.setItem('turborush-name',name);return {name,carId:selected,mapId:selectedMapId};};
   $('create-room').onclick=()=>run(()=>network.action('create',data()));
   $('join-room').onclick=()=>run(()=>network.action('join',{...data(),code:$('join-code').value}));
   $('join-code').onkeydown=e=>{if(e.key==='Enter')$('join-room').click();};
@@ -104,9 +105,10 @@ function refreshResults(){
 const controls=new Controls(action=>{if(action==='reset')reset();if(action==='pause')pauseMenu();if(action==='camera'){world.cameraMode=(world.cameraMode+1)%3;toast(['Chase camera','Far chase camera','Hood camera'][world.cameraMode]);}});
 const network=new NetworkManager({
   connection:connected=>{$('connection').querySelector('span').textContent=connected?'SERVER ONLINE':'SOLO AVAILABLE';$('connection').querySelector('i').style.background=connected?'#cef882':'#f4ad73';if(!connected&&mode==='online'){controls.clear();toast('Connection lost. Reconnecting to your room…');}},
-  room:next=>{room=next;if(next.state==='lobby'){if(mode==='online')showGarage();renderLobby();}},
+  room:next=>{room=next;if(next.mapId&&next.mapId!==selectedMapId)selectMap(next.mapId);if(next.state==='lobby'){if(mode==='online')showGarage();renderLobby();}},
   snapshot:snapshot=>{
     snapshotAt=performance.now();onlineState=snapshot.state;
+    if(snapshot.mapId&&snapshot.mapId!==selectedMapId)selectMap(snapshot.mapId);
     if(onlineStarted!==snapshot.startsAt||mode!=='online'){
       onlineStarted=snapshot.startsAt;beginRace('online',snapshot.players.map(p=>({...p})),network.id);
     }
@@ -122,6 +124,8 @@ const network=new NetworkManager({
   },
 });
 function drawTrackPreview(){const p=TRACK.filter((_,i)=>i%8===0).map(p=>`${(p.x+225)/350*135+8},${(p.z+165)/390*72+6}`).join(' ');$('track-preview').innerHTML=`<polyline points="${p}" fill="none" stroke="#b9d39f" stroke-width="3" stroke-linejoin="round"/><circle cx="95" cy="37" r="3" fill="#c9f879"/>`;}
+function updateMapUI(){const map=getActiveMap();if($('track-name'))$('track-name').textContent=map.name;if($('track-description'))$('track-description').innerHTML=`${map.tag} <span>•</span> 3 LAPS`;if($('track-tag'))$('track-tag').textContent=`MAP ${MAPS.findIndex(item=>item.id===map.id)+1}`;if($('track-select'))$('track-select').value=map.id;drawTrackPreview();}
+function selectMap(id){const map=setActiveTrack(id);selectedMapId=map.id;localStorage.setItem('turborush-map',map.id);world?.resetTrack?.();updateMapUI();return map;}
 const mapContext=$('minimap').getContext('2d');
 function drawMinimap(){
   const ctx=mapContext;ctx.clearRect(0,0,220,190);const map=p=>({x:(p.x+225)/350*160+25,y:(p.z+165)/390*155+15});
@@ -196,10 +200,12 @@ async function init(){
   if(initializing)return;initializing=true;
   try{
     if(!webglAvailable($('world')))throw Error('WebGL is unavailable');
+    setActiveTrack(selectedMapId);
     world=new World($('world'),$('game-root'),{onContextLost:()=>{pageHidden=true;controls.clear();toast('Graphics paused. Restore the browser tab or retry WebGL.');},onContextRestored:()=>{pageHidden=false;lastTime=performance.now();toast('Graphics restored.');startFrameLoop();}});world.setQuality(settings.quality);world.showGarage();
     const thumbnails=world.thumbnails();
     $('car-cards').innerHTML=CARS.map(car=>`<button class="car-card" data-car="${car.id}" aria-label="Select ${car.brand} ${car.name}" aria-pressed="false"><span class="card-no">${car.number}</span><span class="card-tag">${car.category}</span><img src="${thumbnails[car.id]}" alt="${car.brand} ${car.name}-inspired 3D car"><div class="card-info"><div><h3>${car.id==='supra'?'Toyota Supra':car.id==='bmw'?'BMW M4':'Bugatti Chiron'}</h3><p>${car.id==='supra'?'THE STREET LEGEND':car.id==='bmw'?'PRECISION IN MOTION':'BEYOND THE LIMIT'}</p></div><span class="card-check">✓</span></div></button>`).join('');
-    document.querySelectorAll('.car-card').forEach(el=>el.onclick=()=>updateCar(el.dataset.car));updateCar(selected);drawTrackPreview();saveSettings();
+    document.querySelectorAll('.car-card').forEach(el=>el.onclick=()=>updateCar(el.dataset.car));updateCar(selected);
+    $('track-select').innerHTML=MAPS.map(map=>`<option value="${map.id}">${map.name} · ${map.tag}</option>`).join('');$('track-select').onchange=e=>selectMap(e.target.value);updateMapUI();saveSettings();
     $('loading').classList.add('hidden');startFrameLoop();
   }catch(error){showWebGLError(error);}finally{initializing=false;}
 }

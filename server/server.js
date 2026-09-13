@@ -45,7 +45,7 @@ export async function createGameServer({production=false}={}) {
     action('create',data=>{
       if(rooms.has(identity.room))throw Error('Leave your current room first.');
       const player=validatePlayer(data,{players:new Map()});
-      const room=newRoom(identity.id);room.players.set(identity.id,{...player,id:identity.id,ready:false,connected:true,input:{...EMPTY_INPUT},inputAt:0});
+      const room=newRoom(identity.id,data.mapId);room.players.set(identity.id,{...player,id:identity.id,ready:false,connected:true,input:{...EMPTY_INPUT},inputAt:0});
       identity.room=room.code;socket.join(room.code);broadcast(room);return {code:room.code};
     });
     action('join',data=>{

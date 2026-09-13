@@ -1,5 +1,5 @@
 import { getCar } from './cars.js';
-import { nearestPoint, TRACK_WIDTH, BARRIERS } from './track.js';
+import { nearestPoint, TRACK_WIDTH, BARRIERS, trackVersion } from './track.js';
 
 // Oriented boxes cover bodywork, tyres and bumpers, not just a circle at the car centre.
 export function carShape(r) {
@@ -35,17 +35,20 @@ function boxContact(a,sa,b,sb) {
 
 export const barrierContact = (r, barrier) => boxContact(r,carShape(r),barrier,barrier);
 // Static spatial buckets avoid testing every wall for every car on every substep.
-const cellSize=8,wallCells=new Map();
-for(const wall of BARRIERS){
-  const ex=extent(wall,{x:1,z:0}),ez=extent(wall,{x:0,z:1});
-  for(let x=Math.floor((wall.x-ex)/cellSize);x<=Math.floor((wall.x+ex)/cellSize);x++)
-    for(let z=Math.floor((wall.z-ez)/cellSize);z<=Math.floor((wall.z+ez)/cellSize);z++){
-      const key=`${x},${z}`;
-      if(!wallCells.has(key))wallCells.set(key,[]);
-      wallCells.get(key).push(wall);
-    }
+const cellSize=8,wallCells=new Map();let wallVersion=-1;
+function rebuildWallCells(){
+  if(wallVersion===trackVersion)return;wallCells.clear();
+  for(const wall of BARRIERS){
+    const ex=extent(wall,{x:1,z:0}),ez=extent(wall,{x:0,z:1});
+    for(let x=Math.floor((wall.x-ex)/cellSize);x<=Math.floor((wall.x+ex)/cellSize);x++)
+      for(let z=Math.floor((wall.z-ez)/cellSize);z<=Math.floor((wall.z+ez)/cellSize);z++){
+        const key=`${x},${z}`;if(!wallCells.has(key))wallCells.set(key,[]);wallCells.get(key).push(wall);
+      }
+  }
+  wallVersion=trackVersion;
 }
 function nearbyWalls(r){
+  rebuildWallCells();
   const walls=new Set();
   for(let x=Math.floor((r.x-3)/cellSize);x<=Math.floor((r.x+3)/cellSize);x++)
     for(let z=Math.floor((r.z-3)/cellSize);z<=Math.floor((r.z+3)/cellSize);z++)
