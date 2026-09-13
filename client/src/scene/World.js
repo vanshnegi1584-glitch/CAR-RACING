@@ -9,9 +9,9 @@ export class World {
     this.canvas=canvas;this.root=root;this.hooks=hooks;this.resizeObserver=null;
     this.renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:false,powerPreference:'high-performance'});
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio||1,1.5));this.renderer.shadowMap.enabled=true;this.renderer.shadowMap.type=THREE.PCFSoftShadowMap;
-    this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.25;
+    this.renderer.outputColorSpace=THREE.SRGBColorSpace;this.renderer.toneMapping=THREE.ACESFilmicToneMapping;this.renderer.toneMappingExposure=1.25;
     this.camera=new THREE.PerspectiveCamera(38,1,.1,1700);
-    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#141b22');
+    this.scene=new THREE.Scene();this.scene.background=new THREE.Color('#141b22');this.skyUniforms={topColor:{value:new THREE.Color('#4b7896')},horizonColor:{value:new THREE.Color('#dce7e6')},bottomColor:{value:new THREE.Color('#789269')}};this.skyDome=this.createSkyDome();this.scene.add(this.skyDome);
     const pmrem=new THREE.PMREMGenerator(this.renderer),env=new RoomEnvironment();this.envTarget=pmrem.fromScene(env,.04);this.scene.environment=this.envTarget.texture;env.dispose();pmrem.dispose();
     this.fillLight=new THREE.HemisphereLight(0xbbd9ef,0x25232a,2);this.scene.add(this.fillLight);
     this.sun=new THREE.DirectionalLight(0xffecd9,4);this.sun.position.set(6,12,8);this.sun.castShadow=true;this.sun.shadow.mapSize.set(2048,2048);this.sun.shadow.camera.left=-12;this.sun.shadow.camera.right=12;this.sun.shadow.camera.top=12;this.sun.shadow.camera.bottom=-12;this.sun.shadow.normalBias=.025;this.scene.add(this.sun);this.scene.add(this.sun.target);
@@ -30,6 +30,11 @@ export class World {
     this.canvas.addEventListener('webglcontextrestored',()=>{this.renderer.resetState();this.hooks.onContextRestored?.();});
     this.resize();
   }
+  createSkyDome(){
+    const material=new THREE.ShaderMaterial({uniforms:this.skyUniforms,vertexShader:'varying vec3 vWorldPosition;void main(){vec4 worldPosition=modelMatrix*vec4(position,1.0);vWorldPosition=worldPosition.xyz;gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0);}',fragmentShader:'uniform vec3 topColor;uniform vec3 horizonColor;uniform vec3 bottomColor;varying vec3 vWorldPosition;void main(){float h=normalize(vWorldPosition).y;float top=smoothstep(-.05,.82,h);float horizon=smoothstep(-.2,.18,h);vec3 color=mix(bottomColor,topColor,top);color=mix(horizonColor,color,horizon);gl_FragColor=vec4(color,1.0);}',side:THREE.BackSide,depthWrite:false,fog:false});
+    const dome=new THREE.Mesh(new THREE.SphereGeometry(1200,32,16),material);dome.frustumCulled=false;dome.renderOrder=-10;return dome;
+  }
+  setSkyTheme(theme){const names={topColor:'skyTop',horizonColor:'skyHorizon',bottomColor:'skyBottom'};for(const key of Object.keys(names))if(theme[names[key]])this.skyUniforms[key].value.set(theme[names[key]]);}
   resize(){
     const element=this.root||this.canvas.parentElement;const width=Math.max(1,Math.round(element?.clientWidth||innerWidth));const height=Math.max(1,Math.round(element?.clientHeight||innerHeight));
     this.renderer.setPixelRatio(this.pixelRatio||Math.min(window.devicePixelRatio||1,1.5));this.renderer.setSize(width,height,false);this.camera.aspect=width/height;this.camera.updateProjectionMatrix();this.size={width,height};
@@ -55,7 +60,7 @@ export class World {
     if(this.raceGroup)return;const group=this.raceGroup=new THREE.Group();this.scene.add(group);
     const asphaltMap=surfaceTexture('asphalt');asphaltMap.repeat.set(5,1);asphaltMap.anisotropy=Math.min(4,this.renderer.capabilities.getMaxAnisotropy());
     const theme=getActiveMap().theme;
-    const asphalt=new THREE.MeshStandardMaterial({map:asphaltMap,color:theme.asphalt,roughness:.98,envMapIntensity:.12});
+    const asphalt=new THREE.MeshStandardMaterial({map:asphaltMap,color:theme.asphalt,roughness:.9,metalness:.08,envMapIntensity:.22});
     const strip=(inner,outer,material,height=.025)=>{
       const v=[],uv=[],indices=[];
       for(let i=0;i<=TRACK.length;i++){const p=TRACK[i%TRACK.length],s=i===TRACK.length?TRACK_LENGTH:p.s,a=edgePoint(p,inner),b=edgePoint(p,outer);v.push(a.x,height,a.z,b.x,height,b.z);uv.push(0,s/4,1,s/4);if(i<TRACK.length){const a=i*2;indices.push(a,a+2,a+1,a+1,a+2,a+3);}}
@@ -71,6 +76,7 @@ export class World {
     const gravel=new THREE.MeshStandardMaterial({map:surfaceTexture('gravel'),roughness:1,envMapIntensity:.1,side:THREE.DoubleSide});
     for(const side of[-1,1])strip(side*9.5,side*12,gravel,.008);
     for(const side of [-1,1])strip(side*9.1,side*9.25,new THREE.MeshBasicMaterial({color:0xe6e3bd,side:THREE.DoubleSide}),.04);
+    if(theme.environment==='city')for(const side of [-1,1])strip(side*9.18,side*9.08,new THREE.MeshBasicMaterial({color:theme.neon}),.055);
     const boxGeo=new THREE.BoxGeometry(1,1,1),white=new THREE.MeshStandardMaterial({color:0xe6e8df}),red=new THREE.MeshStandardMaterial({color:0xc14d36}),barrierMat=new THREE.MeshStandardMaterial({color:theme.barrier,metalness:.45,roughness:.48});
     const instances=(count,geometry,mat)=>{const m=new THREE.InstancedMesh(geometry,mat,count);m.receiveShadow=true;group.add(m);return m;};
     const matrix=new THREE.Object3D();
@@ -112,8 +118,8 @@ export class World {
     this.pickups=[];const glow=new THREE.MeshBasicMaterial({color:0x9fffef});
     for(let i=0;i<16;i++){const p=pointAt(40+i*TRACK_LENGTH/16);const mesh=new THREE.Mesh(new THREE.OctahedronGeometry(.5),glow);mesh.position.set(p.x,1.5,p.z);group.add(mesh);this.pickups.push({mesh,s:p.s});}
   }
-  showGarage(){this.mode='garage';this.garage.visible=true;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
-  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.raceGroup.visible=true;const theme=getActiveMap().theme;this.scene.background.set(theme.sky);this.scene.fog=new THREE.Fog(theme.fog||theme.sky,theme.fogNear||150,theme.fogFar||850);const city=theme.environment==='city',coast=theme.environment==='coast';this.sun.intensity=city?.8:coast?3.1:2.6;this.fillLight.intensity=city?.7:coast?1.5:1.25;this.rim.intensity=city?2.2:coast?.9:.65;this.renderer.toneMappingExposure=city?1.18:1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
+  showGarage(){this.mode='garage';this.garage.visible=true;this.skyDome.visible=false;if(this.raceGroup)this.raceGroup.visible=false;for(const model of this.models.values())model.visible=false;this.scene.background.set('#141b22');this.scene.fog=new THREE.Fog(0x141b22,24,70);this.camera.fov=38;this.camera.updateProjectionMatrix();this.sun.position.set(6,12,8);this.sun.target.position.set(0,0,0);this.sun.intensity=4;this.fillLight.intensity=2;this.rim.intensity=2.6;this.renderer.toneMappingExposure=1.25;}
+  showRace(racers){this.buildTrack();this.mode='race';this.garage.visible=false;this.skyDome.visible=true;this.raceGroup.visible=true;const theme=getActiveMap().theme;this.setSkyTheme(theme);this.scene.background.set(theme.sky);this.scene.fog=new THREE.Fog(theme.fog||theme.sky,theme.fogNear||150,theme.fogFar||850);const city=theme.environment==='city',coast=theme.environment==='coast';this.sun.intensity=city?.8:coast?3.1:2.6;this.fillLight.intensity=city?.7:coast?1.5:1.25;this.rim.intensity=city?2.2:coast?.9:.65;this.renderer.toneMappingExposure=city?1.18:1.05;for(const m of this.models.values()){this.scene.remove(m);this.disposeObject(m);}this.models.clear();for(const r of racers){const mesh=makeCar(r.carId);this.models.set(r.id,mesh);this.scene.add(mesh);updateCarModel(mesh,r,0);}this.camera.position.set(racers[0].x,6,racers[0].z-10);}
   thumbnails(){
     const result={};const oldId=this.car.userData.id;
     this.renderer.setSize(440,220,false);this.camera.aspect=2;this.camera.fov=35;this.camera.updateProjectionMatrix();this.camera.position.set(6,2.8,7.8);this.camera.lookAt(0,.7,0);

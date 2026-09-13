@@ -127,8 +127,19 @@ const network=new NetworkManager({
     const old=new Map(racers.map(r=>[r.id,r]));
     racers=snapshot.players.map(state=>{
       const previous=old.get(state.id);
-      if(!previous||Math.hypot(previous.x-state.x,previous.z-state.z)>6)return {...state};
-      const blend=state.id===localId?.7:.45;
+      if(!previous)return {...state};
+      const error=Math.hypot(previous.x-state.x,previous.z-state.z);
+      if(error>6)return {...state};
+      if(state.id===localId){
+        // Keep local prediction continuous between 20 Hz server snapshots. The
+        // server still corrects the position, fuel and race progress, but its
+        // velocity is not injected every snapshot, which used to shake the
+        // chase camera while accelerating.
+        const blend=Math.min(.22,.06+error*.04),corrected={...state,x:previous.x+(state.x-previous.x)*blend,z:previous.z+(state.z-previous.z)*blend,yaw:previous.yaw+angleDiff(state.yaw,previous.yaw)*blend};
+        for(const key of ['vx','vz','speed','steer','wheelSteer','yawRate','driftAmount','drifting','boosting'])if(previous[key]!==undefined)corrected[key]=previous[key];
+        return corrected;
+      }
+      const blend=.45;
       return {...state,x:previous.x+(state.x-previous.x)*blend,z:previous.z+(state.z-previous.z)*blend,yaw:previous.yaw+angleDiff(state.yaw,previous.yaw)*blend};
     });
     if(snapshot.state==='results')showResults();refreshResults();

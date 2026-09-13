@@ -3,9 +3,9 @@
 const catmull=(a,b,c,d,t)=>.5*((2*b)+(-a+c)*t+(2*a-5*b+4*c-d)*t*t+(-a+3*b-3*c+d)*t*t*t);
 const mapDefinition=(id,name,tag,controls,theme)=>({id,name,tag,controls,theme});
 export const TRACKS=[
-  mapDefinition('pinecrest','Pinecrest Circuit','FOREST RUN',[[0,0],[0,145],[-65,215],[-170,195],[-210,110],[-145,35],[-200,-60],[-120,-145],[10,-155],[110,-105],[100,-50],[40,-30]],{environment:'forest',sky:'#bdd3df',fog:'#bdd3df',fogNear:150,fogFar:850,asphalt:0xc4c7cb,grass:0xb6c6a7,barrier:0x899698}),
-  mapDefinition('coastline','Coastline Sprint','OCEAN DRIVE',[[0,0],[0,150],[-82,218],[-190,195],[-228,105],[-170,12],[-215,-88],[-120,-170],[20,-182],[145,-128],[150,-36],[62,-28]],{environment:'coast',sky:'#f0c99f',fog:'#b7d8df',fogNear:180,fogFar:980,asphalt:0xb9c6c4,grass:0xcdbb8d,barrier:0x78969b,water:0x2a8fa8,foam:0xd8f3e8}),
-  mapDefinition('neon-loop','Neon Loop','CITY LIGHTS',[[0,0],[0,142],[-72,226],[-184,214],[-224,120],[-178,20],[-224,-84],[-122,-176],[20,-188],[148,-130],[154,-38],[58,-26]],{environment:'city',sky:'#090f24',fog:'#101a38',fogNear:100,fogFar:720,asphalt:0x34394e,grass:0x101729,barrier:0x657287,building:0x1c2444,neon:0x51e6ff,neonAlt:0xff43c7}),
+  mapDefinition('pinecrest','Pinecrest Circuit','FOREST RUN',[[0,0],[0,145],[-65,215],[-170,195],[-210,110],[-145,35],[-200,-60],[-120,-145],[10,-155],[110,-105],[100,-50],[40,-30]],{environment:'forest',sky:'#bdd3df',skyTop:'#6f9bb7',skyHorizon:'#dce7e6',skyBottom:'#789269',fog:'#bdd3df',fogNear:150,fogFar:850,asphalt:0xc4c7cb,grass:0xb6c6a7,barrier:0x899698}),
+  mapDefinition('coastline','Coastline Sprint','OCEAN DRIVE',[[0,0],[0,150],[-82,218],[-190,195],[-228,105],[-170,12],[-215,-88],[-120,-170],[20,-182],[145,-128],[150,-36],[62,-28]],{environment:'coast',sky:'#f0c99f',skyTop:'#5e9fc2',skyHorizon:'#ffd5a1',skyBottom:'#d8b77f',fog:'#b7d8df',fogNear:180,fogFar:980,asphalt:0xb9c6c4,grass:0xcdbb8d,barrier:0x78969b,water:0x2a8fa8,foam:0xd8f3e8}),
+  mapDefinition('neon-loop','Neon Loop','CITY LIGHTS',[[0,0],[0,142],[-72,226],[-184,214],[-224,120],[-178,20],[-224,-84],[-122,-176],[20,-188],[148,-130],[154,-38],[58,-26]],{environment:'city',sky:'#090f24',skyTop:'#050817',skyHorizon:'#263b78',skyBottom:'#0d1028',fog:'#101a38',fogNear:100,fogFar:720,asphalt:0x34394e,grass:0x101729,barrier:0x657287,building:0x1c2444,neon:0x51e6ff,neonAlt:0xff43c7}),
 ];
 export const MAPS=TRACKS.map(({id,name,tag,theme})=>({id,name,tag,theme}));
 export const RANDOM_MAP_ID='random';
@@ -36,7 +36,7 @@ const rebuild=(definition)=>{
   BARRIERS.length=0;BARRIERS.push(...[-1,1].flatMap(side=>edgeSegments(side*(TRACK_WIDTH/2+.05),.2)));
   trackVersion++;
 };
-export function setActiveTrack(id){const definition=TRACKS.find(track=>track.id===id)||TRACKS[0];ACTIVE_MAP=MAPS.find(map=>map.id===definition.id)||MAPS[0];rebuild(definition);return ACTIVE_MAP;}
+export function setActiveTrack(id){const definition=TRACKS.find(track=>track.id===id)||TRACKS[0];if(TRACK.length&&ACTIVE_MAP.id===definition.id)return ACTIVE_MAP;ACTIVE_MAP=MAPS.find(map=>map.id===definition.id)||MAPS[0];rebuild(definition);return ACTIVE_MAP;}
 export const getActiveMap=()=>ACTIVE_MAP;
 export const edgePoint=(p,offset)=>({x:p.x+p.nx*offset,z:p.z+p.nz*offset});
 export function edgeSegments(offset,width){return TRACK.map((p,i)=>{const a=edgePoint(p,offset),b=edgePoint(TRACK[(i+1)%TRACK.length],offset),dx=b.x-a.x,dz=b.z-a.z,length=Math.hypot(dx,dz);return {a,b,x:(a.x+b.x)/2,z:(a.z+b.z)/2,yaw:Math.atan2(dx,dz),halfWidth:width/2,halfLength:length/2+.01,side:{x:dz/length,z:-dx/length},forward:{x:dx/length,z:dz/length},s:p.s};});}

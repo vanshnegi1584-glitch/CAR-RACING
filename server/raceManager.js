@@ -25,5 +25,6 @@ export function tickRace(room,now=Date.now()) {
   return false;
 }
 export function raceSnapshot(room) {
-  return {startsAt:room.race.startsAt,serverNow:Date.now(),elapsed:room.race.elapsed,mapId:room.race.mapId||room.mapId,players:room.race.states,order:ranking(room.race.states).map(r=>r.id),state:room.state};
+  const mapId=room.race.mapId||room.mapId;setActiveTrack(mapId);
+  return {startsAt:room.race.startsAt,serverNow:Date.now(),elapsed:room.race.elapsed,mapId,players:room.race.states,order:ranking(room.race.states).map(r=>r.id),state:room.state};
 }
